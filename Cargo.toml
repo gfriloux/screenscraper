@@ -2,6 +2,10 @@
 name = "screenscraper"
 version = "0.1.0"
 edition = "2021"
+license = "Beer-ware"
+description = "Unofficial ScreenScraper.fr library."
+homepage = "https://github.com/gfriloux/screenscraper"
+repository = "https://github.com/gfriloux/screenscraper"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
