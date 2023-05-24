@@ -11,10 +11,10 @@ repository = "https://github.com/gfriloux/screenscraper"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-serde_derive = "*"
-serde_json = "*"
-snafu = "*"
-reqwest = { version = "*", features = ["blocking"] }
+serde_derive = "1.0.163"
+serde_json = "1.0.96"
+snafu = "0.7.4"
+reqwest = { version = "0.11.18", features = ["blocking"] }
 
 [dev-dependencies]
 dotenv = "0.15.0"
