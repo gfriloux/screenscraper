@@ -2,7 +2,7 @@
 name = "screenscraper"
 version = "0.1.0"
 edition = "2021"
-license = "Beer-ware"
+license = "BSD-4-Clause"
 description = "Unofficial ScreenScraper.fr library."
 homepage = "https://github.com/gfriloux/screenscraper"
 repository = "https://github.com/gfriloux/screenscraper"
