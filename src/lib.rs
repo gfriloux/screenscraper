@@ -6,8 +6,8 @@ extern crate serde_json;
 
 #[cfg(test)] extern crate dotenv;
 
-mod userinfo;
-mod jeuinfo;
+pub mod userinfo;
+pub mod jeuinfo;
 mod header;
 
 use crate::userinfo::UserInfo;

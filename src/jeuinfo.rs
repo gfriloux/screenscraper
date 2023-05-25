@@ -147,4 +147,95 @@ impl JeuInfo {
 		let user_info = response.response.jeu;
 		Ok(user_info)
 	}
+
+	
+   pub fn media(&mut self, name: &str) -> Option<Media> {
+      let language = vec!["fr", "eu", "us", "wor", "jp", "ss"];
+
+      for i in &language {
+         for media in &self.medias {
+            if let Some(x) = &media.region {
+               if x != i {
+                  continue;
+               }
+            }
+
+            if media.name == name {
+               return Some(media.clone());
+            }
+         }
+      }
+      None
+   }
+
+   pub fn find_name(&self, fav: &Vec<&str>) -> String {
+      if let Some(x) = &self.rom {
+         if let Some(y) = &x.romregions {
+            let lkt: Vec<&str> = y.split(',').collect();
+            for i in lkt {
+               match self.noms.iter().find(|x| &x.region == i) {
+                  Some(x) => { return x.text.clone() },
+                  None    => {                       }
+               };
+            }
+         }
+      }
+
+      for i in fav {
+         match self.noms.iter().find(|x| &x.region == i) {
+            Some(x) => { return x.text.clone() },
+            None    => {                       }
+         };
+      }
+      "Unknown".to_string()
+   }
+
+   pub fn find_desc(&self, fav: &Vec<&str>) -> String {
+      if let Some(ref x) = self.synopsis {
+         for i in fav {
+            for ref desc in x {
+               if &desc.langue == i {
+                  return desc.text.clone();
+               }
+            }
+         }
+      }
+      "Unknown".to_string()
+   }
+
+   pub fn find_date(&self, fav: &Vec<&str>) -> String {
+      if let Some(ref x) = self.dates {
+         for i in fav {
+            for ref date in x {
+               if &date.region == i {
+                  return date.text.clone();
+               }
+            }
+         }
+      }
+      "Unknown".to_string()
+   }
+
+   pub fn find_genre(&self, fav: &Vec<&str>) -> String {
+      if let Some(ref x) = &self.genres {
+         for i in fav {
+            for ref genre in x {
+               if let Some(x)  = &genre.principale {
+                  if x != "1" {
+                     continue;
+                  }
+               }
+
+               if let Some(x) = &genre.noms {
+                  for nom in x {
+                     if nom.langue == *i {
+                        return nom.text.clone();
+                     }
+                  }
+               }
+            }
+         }
+      }
+      "Unknown".to_string()
+   }
 }
