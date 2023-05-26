@@ -75,19 +75,31 @@ impl ScreenScraper {
 		Ok(())
 	}
 
-	pub fn jeuinfo(&self, id: u32, filename: &str, filesize: u64) -> Result<JeuInfo> {
-		let mut query  = Vec::new();
-		query.push(("devid"      , self.dev_login.clone()));
-      	query.push(("devpassword", self.dev_password.clone()));
-      	query.push(("softname"   , self.soft_name.clone()));
-      	query.push(("ssid"       , self.user_login.clone()));
-      	query.push(("sspassword" , self.user_password.clone()));
-      	query.push(("output"     , "json".to_string()));
-      	query.push(("systemeid"  , format!("{}", id)));
-      	query.push(("romnom"     , filename.to_string()));
-      	query.push(("romtaille"  , format!("{}", filesize)));
+	pub fn jeuinfo(&self, id: u32, filename: &str, filesize: u64, crc: Option<String>, md5: Option<String>, sha1: Option<String>) -> Result<JeuInfo> {
+    let mut query  = Vec::new();
+    query.push(("devid"      , self.dev_login.clone()));
+    query.push(("devpassword", self.dev_password.clone()));
+    query.push(("softname"   , self.soft_name.clone()));
+    query.push(("ssid"       , self.user_login.clone()));
+    query.push(("sspassword" , self.user_password.clone()));
+    query.push(("output"     , "json".to_string()));
+    query.push(("systemeid"  , format!("{}", id)));
+    query.push(("romnom"     , filename.to_string()));
+    query.push(("romtaille"  , format!("{}", filesize)));
 
-		Ok(JeuInfo::new(&query).context(JeuInfoFailedSnafu { user: filename.to_string() })?)
+    if let Some(x) = crc {
+      query.push(("crc"  , x));
+    }
+
+    if let Some(x) = md5 {
+      query.push(("md5"  , x));
+    }
+
+    if let Some(x) = sha1 {
+      query.push(("sha1"  , x));
+    }
+
+    Ok(JeuInfo::new(&query).context(JeuInfoFailedSnafu { user: filename.to_string() })?)
 	}
 }
 
@@ -105,7 +117,7 @@ mod tests {
         						    &std::env::var("SS_DEV_PASSWORD").unwrap()).unwrap();
         println!("{:#?}", ss);
 
-        let ji = ss.jeuinfo(1, "Sonic The Hedgehog (World).zip", 749652).unwrap();
+        let ji = ss.jeuinfo(1, "Sonic The Hedgehog (World).zip", 749652, None, None, None).unwrap();
         println!("{:#?}", ji);
     }
 }
