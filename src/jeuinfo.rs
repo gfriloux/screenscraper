@@ -3,37 +3,37 @@ use std::path::PathBuf;
 use snafu::{ResultExt, Snafu};
 use super::header::Header;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericRegionText {
    pub region:          String,
    pub text:            String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericIdText {
    pub id:              String,
    pub text:            String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericText {
    pub text:            String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericLangueText {
    pub langue:          String,
    pub text:            String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Classification {
    #[serde(rename = "type")]
    pub name:            String,
    pub text:            String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericObject {
    pub id:              String,
    pub principale:      Option<String>,
@@ -54,7 +54,7 @@ pub struct Media {
    pub format:          String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rom {
    pub id:              Option<String>,
    pub romsize:         Option<String>,
@@ -77,7 +77,7 @@ pub struct Rom {
    pub netplay:         String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JeuInfo {
    pub id:              String,
    pub romid:           Option<String>,
@@ -142,7 +142,6 @@ impl JeuInfo {
       	                .send()
       		            .context(DownloadFailedSnafu { filename: PathBuf::from(&url) })?;
       	let s = res.text().context(DownloadFailedSnafu { filename: PathBuf::from(&url) })?;
-      	println!("{}", s);
       	let response: UserInfosResult = serde_json::from_str(&s).context(ParseFailedSnafu)?;
 		let user_info = response.response.jeu;
 		Ok(user_info)
