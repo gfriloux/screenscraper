@@ -6,100 +6,102 @@ use snafu::{ensure, ResultExt, Snafu};
 
 #[derive(Deserialize)]
 struct ResponseUserInfo {
-    ssuser: UserInfo,
+  ssuser: UserInfo,
 }
 
 #[derive(Deserialize)]
 struct UserInfosResult {
-    header: Header,
-    response: Option<ResponseUserInfo>,
+  header: Header,
+  response: Option<ResponseUserInfo>,
 }
 
 #[derive(Deserialize)]
 struct ResponseJeuInfo {
-    jeu: JeuInfo,
+  jeu: JeuInfo,
 }
 
 #[derive(Deserialize)]
 struct JeuInfosResult {
-    header: Header,
-    response: Option<ResponseJeuInfo>,
+  header: Header,
+  response: Option<ResponseJeuInfo>,
 }
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Failed to reach API at {}: {}", url, source))]
-    Request { url: String, source: reqwest::Error },
+  #[snafu(display("Failed to reach API at {}: {}", url, source))]
+  Request { url: String, source: reqwest::Error },
 
-    #[snafu(display("Failed to parse API response: {}", source))]
-    Parse { source: serde_json::Error },
+  #[snafu(display("Failed to parse API response: {}", source))]
+  Parse { source: serde_json::Error },
 
-    #[snafu(display("API error: {}", message))]
-    Api { message: String },
+  #[snafu(display("API error: {}", message))]
+  Api { message: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn fetch_user_info(
-    client: &reqwest::blocking::Client,
-    query: &[(&str, String)],
+  client: &reqwest::blocking::Client,
+  query: &[(&str, String)],
 ) -> Result<UserInfo> {
-    let url = "https://www.screenscraper.fr/api2/ssuserInfos.php";
-    parse_user_info(&get(client, url, query)?)
+  let url = "https://www.screenscraper.fr/api2/ssuserInfos.php";
+  parse_user_info(&get(client, url, query)?)
 }
 
 pub fn fetch_jeu_info(
-    client: &reqwest::blocking::Client,
-    query: &[(&str, String)],
+  client: &reqwest::blocking::Client,
+  query: &[(&str, String)],
 ) -> Result<JeuInfo> {
-    let url = "https://www.screenscraper.fr/api2/jeuInfos.php";
-    parse_jeu_info(&get(client, url, query)?)
+  let url = "https://www.screenscraper.fr/api2/jeuInfos.php";
+  parse_jeu_info(&get(client, url, query)?)
 }
 
 fn parse_user_info(body: &str) -> Result<UserInfo> {
-    let data: UserInfosResult = serde_json::from_str(body).context(ParseSnafu)?;
-    ensure!(
-        data.header.success == "true",
-        ApiSnafu {
-            message: data.header.error.clone()
-        }
-    );
-    data.response
-        .ok_or_else(|| Error::Api {
-            message: "API returned success but no response".to_string(),
-        })
-        .map(|r| r.ssuser)
+  let data: UserInfosResult = serde_json::from_str(body).context(ParseSnafu)?;
+  ensure!(
+    data.header.success == "true",
+    ApiSnafu {
+      message: data.header.error.clone()
+    }
+  );
+  data
+    .response
+    .ok_or_else(|| Error::Api {
+      message: "API returned success but no response".to_string(),
+    })
+    .map(|r| r.ssuser)
 }
 
 fn parse_jeu_info(body: &str) -> Result<JeuInfo> {
-    let data: JeuInfosResult = serde_json::from_str(body).context(ParseSnafu)?;
-    ensure!(
-        data.header.success == "true",
-        ApiSnafu {
-            message: data.header.error.clone()
-        }
-    );
-    data.response
-        .ok_or_else(|| Error::Api {
-            message: "API returned success but no response".to_string(),
-        })
-        .map(|r| r.jeu)
+  let data: JeuInfosResult = serde_json::from_str(body).context(ParseSnafu)?;
+  ensure!(
+    data.header.success == "true",
+    ApiSnafu {
+      message: data.header.error.clone()
+    }
+  );
+  data
+    .response
+    .ok_or_else(|| Error::Api {
+      message: "API returned success but no response".to_string(),
+    })
+    .map(|r| r.jeu)
 }
 
 fn get(client: &reqwest::blocking::Client, url: &str, query: &[(&str, String)]) -> Result<String> {
-    client
-        .get(url)
-        .query(query)
-        .send()
-        .and_then(|r| r.text())
-        .context(RequestSnafu { url })
+  client
+    .get(url)
+    .query(query)
+    .send()
+    .and_then(|r| r.text())
+    .context(RequestSnafu { url })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    const HEADER_OK: &str = r#"{
+  const HEADER_OK: &str = r#"{
         "APIversion": "2.0",
         "dateTime": "2026-04-17 22:40:51",
         "commandRequested": "https://api.screenscraper.fr/api2/ssuserInfos.php",
@@ -107,7 +109,7 @@ mod tests {
         "error": ""
     }"#;
 
-    const HEADER_ERR: &str = r#"{
+  const HEADER_ERR: &str = r#"{
         "APIversion": "2.0",
         "dateTime": "2026-04-17 22:40:51",
         "commandRequested": "https://api.screenscraper.fr/api2/ssuserInfos.php",
@@ -115,7 +117,7 @@ mod tests {
         "error": "Erreur : Acces WS non autorise !"
     }"#;
 
-    const SSUSER: &str = r#"{
+  const SSUSER: &str = r#"{
         "id": "testuser",
         "numid": "9611",
         "niveau": "11",
@@ -139,7 +141,7 @@ mod tests {
         "favregion": "fr"
     }"#;
 
-    const JEU: &str = r#"{
+  const JEU: &str = r#"{
         "id": "3",
         "romid": "119923",
         "notgame": "false",
@@ -205,68 +207,68 @@ mod tests {
         "roms": []
     }"#;
 
-    // --- parse_user_info ---
+  // --- parse_user_info ---
 
-    #[test]
-    fn parse_user_info_success() {
-        let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"ssuser": {SSUSER}}}}}"#);
-        let result = parse_user_info(&body);
-        assert!(result.is_ok(), "expected Ok, got: {:?}", result);
-        let user = result.unwrap();
-        assert_eq!(user.id, "testuser");
-        assert_eq!(user.niveau, "11");
-        assert_eq!(user.favregion, "fr");
-        assert_eq!(user.maxthreads, "3");
-        assert_eq!(user.requeststoday, Some("0".to_string()));
+  #[test]
+  fn parse_user_info_success() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"ssuser": {SSUSER}}}}}"#);
+    let result = parse_user_info(&body);
+    assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+    let user = result.unwrap();
+    assert_eq!(user.id, "testuser");
+    assert_eq!(user.niveau, "11");
+    assert_eq!(user.favregion, "fr");
+    assert_eq!(user.maxthreads, "3");
+    assert_eq!(user.requeststoday, Some("0".to_string()));
+  }
+
+  #[test]
+  fn parse_user_info_api_error() {
+    let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
+    let result = parse_user_info(&body);
+    assert!(matches!(result, Err(Error::Api { .. })));
+    if let Err(Error::Api { message }) = result {
+      assert!(message.contains("Acces WS non autorise"));
     }
+  }
 
-    #[test]
-    fn parse_user_info_api_error() {
-        let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
-        let result = parse_user_info(&body);
-        assert!(matches!(result, Err(Error::Api { .. })));
-        if let Err(Error::Api { message }) = result {
-            assert!(message.contains("Acces WS non autorise"));
-        }
-    }
+  #[test]
+  fn parse_user_info_missing_response() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": null}}"#);
+    let result = parse_user_info(&body);
+    assert!(matches!(result, Err(Error::Api { .. })));
+  }
 
-    #[test]
-    fn parse_user_info_missing_response() {
-        let body = format!(r#"{{"header": {HEADER_OK}, "response": null}}"#);
-        let result = parse_user_info(&body);
-        assert!(matches!(result, Err(Error::Api { .. })));
-    }
+  #[test]
+  fn parse_user_info_invalid_json() {
+    let result = parse_user_info("not json at all");
+    assert!(matches!(result, Err(Error::Parse { .. })));
+  }
 
-    #[test]
-    fn parse_user_info_invalid_json() {
-        let result = parse_user_info("not json at all");
-        assert!(matches!(result, Err(Error::Parse { .. })));
-    }
+  // --- parse_jeu_info ---
 
-    // --- parse_jeu_info ---
+  #[test]
+  fn parse_jeu_info_success() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeu": {JEU}}}}}"#);
+    let result = parse_jeu_info(&body);
+    assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+    let jeu = result.unwrap();
+    assert_eq!(jeu.id, "3");
+    assert_eq!(jeu.noms.len(), 4);
+    assert_eq!(jeu.systeme.as_ref().unwrap().text, "Megadrive");
+    assert_eq!(jeu.medias.len(), 2);
+  }
 
-    #[test]
-    fn parse_jeu_info_success() {
-        let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeu": {JEU}}}}}"#);
-        let result = parse_jeu_info(&body);
-        assert!(result.is_ok(), "expected Ok, got: {:?}", result);
-        let jeu = result.unwrap();
-        assert_eq!(jeu.id, "3");
-        assert_eq!(jeu.noms.len(), 4);
-        assert_eq!(jeu.systeme.as_ref().unwrap().text, "Megadrive");
-        assert_eq!(jeu.medias.len(), 2);
-    }
+  #[test]
+  fn parse_jeu_info_api_error() {
+    let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
+    let result = parse_jeu_info(&body);
+    assert!(matches!(result, Err(Error::Api { .. })));
+  }
 
-    #[test]
-    fn parse_jeu_info_api_error() {
-        let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
-        let result = parse_jeu_info(&body);
-        assert!(matches!(result, Err(Error::Api { .. })));
-    }
-
-    #[test]
-    fn parse_jeu_info_invalid_json() {
-        let result = parse_jeu_info("{broken");
-        assert!(matches!(result, Err(Error::Parse { .. })));
-    }
+  #[test]
+  fn parse_jeu_info_invalid_json() {
+    let result = parse_jeu_info("{broken");
+    assert!(matches!(result, Err(Error::Parse { .. })));
+  }
 }
