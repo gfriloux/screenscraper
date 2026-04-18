@@ -42,7 +42,7 @@ mkShell {
           - id: rustfmt
             name: rustfmt
             language: system
-            entry: cargo fmt -- --check
+            entry: cargo fmt -- --check --config tab_spaces=2
             files: \.rs$
             pass_filenames: false
           - id: clippy
