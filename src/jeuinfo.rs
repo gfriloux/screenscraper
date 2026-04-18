@@ -114,7 +114,19 @@ pub struct JeuInfo {
 
 impl JeuInfo {
   pub fn media(&self, name: &str) -> Option<Media> {
-    let priority = ["fr", "eu", "us", "wor", "jp", "ss"];
+    let mut priority: Vec<&str> = self
+      .rom
+      .as_ref()
+      .and_then(|r| r.regions.as_ref())
+      .map(|r| r.regions_shortname.iter().map(|s| s.as_str()).collect())
+      .unwrap_or_default();
+
+    for &fallback in &["wor", "ss", "eu", "us", "fr", "jp"] {
+      if !priority.contains(&fallback) {
+        priority.push(fallback);
+      }
+    }
+
     priority.iter().find_map(|&region| {
       self
         .medias
@@ -405,9 +417,9 @@ mod tests {
         format: "png".to_string(),
       },
     ];
-    // priority = ["fr", "eu", "us", ...] → fr comes first
+    // no rom region set → fallback order ["wor", "ss", "eu", "us", "fr", ...] → us comes before fr
     let m = jeu.media("screenshot").unwrap();
-    assert_eq!(m.region.as_deref(), Some("fr"));
+    assert_eq!(m.region.as_deref(), Some("us"));
   }
 
   #[test]
