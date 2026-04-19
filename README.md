@@ -4,8 +4,11 @@ Unofficial Rust library for [ScreenScraper.fr](https://www.screenscraper.fr).
 
 ## Features
 
-- Authenticate and fetch user info
+- Authenticate and fetch user info (quota, thread limit, download speed)
 - Look up game metadata by system ID, filename, size, and checksums (CRC32 / MD5 / SHA1)
+- Look up game metadata by ScreenScraper game ID (no ROM hashes needed)
+- Search games by name (`jeuRecherche`) — up to 30 results ranked by relevance
+- Fetch the full list of systems known to ScreenScraper
 - Rich game data: names, descriptions, genres, dates, ratings, regions, players
 - Select the best available media asset per type, automatically prioritising the ROM's own region
 - Download media files directly from the CDN with SHA1 verification
@@ -79,6 +82,19 @@ Common values for `JeuInfo::media(name)`:
 | `manuel`           | Manual (PDF)         |
 
 ## Changelog
+
+### 0.6.0
+
+- **`ScreenScraper::systems_liste()`** — returns the full list of systems known to
+  ScreenScraper as `Vec<System>`. Each `System` exposes `name()` (priority: `nom_ss` →
+  `nom_eu` → `nom_us`) and `extensions()` (CSV string split into `Vec<&str>`).
+- **`ScreenScraper::jeu_recherche(system_id, name)`** — searches games by name, up to 30
+  results ranked by probability. `system_id` is optional and narrows the search to one system.
+  Returns `Vec<JeuInfo>`.
+- **`ScreenScraper::jeuinfo_by_gameid(system_id, game_id)`** — fetches game info by
+  ScreenScraper game ID, without requiring ROM hashes. ROM-specific fields will be absent.
+- **`UserInfo.maxthreads` / `maxdownloadspeed`** are now `u32` (previously `String`).
+  Quota fields (`requeststoday`, `maxrequestsperday`, etc.) are now `Option<u32>`.
 
 ### 0.5.0
 
