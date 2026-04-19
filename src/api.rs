@@ -1,5 +1,6 @@
 use super::header::Header;
 use super::jeuinfo::JeuInfo;
+use super::system::System;
 use super::userinfo::UserInfo;
 use serde::Deserialize;
 use snafu::{ensure, ResultExt, Snafu};
@@ -24,6 +25,28 @@ struct ResponseJeuInfo {
 struct JeuInfosResult {
   header: Header,
   response: Option<ResponseJeuInfo>,
+}
+
+#[derive(Deserialize)]
+struct ResponseSystemesListe {
+  systemes: Vec<System>,
+}
+
+#[derive(Deserialize)]
+struct SystemesListeResult {
+  header: Header,
+  response: Option<ResponseSystemesListe>,
+}
+
+#[derive(Deserialize)]
+struct ResponseJeuRecherche {
+  jeux: Vec<JeuInfo>,
+}
+
+#[derive(Deserialize)]
+struct JeuRechercheResult {
+  header: Header,
+  response: Option<ResponseJeuRecherche>,
 }
 
 #[derive(Debug, Snafu)]
@@ -56,6 +79,22 @@ pub fn fetch_jeu_info(
   parse_jeu_info(&get(client, url, query)?)
 }
 
+pub fn fetch_systems_liste(
+  client: &reqwest::blocking::Client,
+  query: &[(&str, String)],
+) -> Result<Vec<System>> {
+  let url = "https://www.screenscraper.fr/api2/systemesListe.php";
+  parse_systems_liste(&get(client, url, query)?)
+}
+
+pub fn fetch_jeu_recherche(
+  client: &reqwest::blocking::Client,
+  query: &[(&str, String)],
+) -> Result<Vec<JeuInfo>> {
+  let url = "https://www.screenscraper.fr/api2/jeuRecherche.php";
+  parse_jeu_recherche(&get(client, url, query)?)
+}
+
 fn parse_user_info(body: &str) -> Result<UserInfo> {
   let data: UserInfosResult = serde_json::from_str(body).context(ParseSnafu)?;
   ensure!(
@@ -86,6 +125,38 @@ fn parse_jeu_info(body: &str) -> Result<JeuInfo> {
       message: "API returned success but no response".to_string(),
     })
     .map(|r| r.jeu)
+}
+
+fn parse_systems_liste(body: &str) -> Result<Vec<System>> {
+  let data: SystemesListeResult = serde_json::from_str(body).context(ParseSnafu)?;
+  ensure!(
+    data.header.success == "true",
+    ApiSnafu {
+      message: data.header.error.clone()
+    }
+  );
+  data
+    .response
+    .ok_or_else(|| Error::Api {
+      message: "API returned success but no response".to_string(),
+    })
+    .map(|r| r.systemes)
+}
+
+fn parse_jeu_recherche(body: &str) -> Result<Vec<JeuInfo>> {
+  let data: JeuRechercheResult = serde_json::from_str(body).context(ParseSnafu)?;
+  ensure!(
+    data.header.success == "true",
+    ApiSnafu {
+      message: data.header.error.clone()
+    }
+  );
+  data
+    .response
+    .ok_or_else(|| Error::Api {
+      message: "API returned success but no response".to_string(),
+    })
+    .map(|r| r.jeux)
 }
 
 fn get(client: &reqwest::blocking::Client, url: &str, query: &[(&str, String)]) -> Result<String> {
@@ -207,6 +278,24 @@ mod tests {
         "roms": []
     }"#;
 
+  const SYSTEME: &str = r#"{
+        "id": "1",
+        "parentid": "0",
+        "noms": {
+            "nom_ss": "Megadrive",
+            "nom_eu": "Megadrive / Genesis",
+            "nom_us": "Genesis",
+            "nom_recalbox": "megadrive",
+            "nom_retropie": "megadrive",
+            "noms_commun": ["MD", "Genesis"]
+        },
+        "extensions": "bin,gen,md,smd,zip",
+        "compagnie": "SEGA",
+        "type": "Console",
+        "datedebut": "1988",
+        "datefin": "1997"
+    }"#;
+
   // --- parse_user_info ---
 
   #[test]
@@ -218,8 +307,10 @@ mod tests {
     assert_eq!(user.id, "testuser");
     assert_eq!(user.niveau, "11");
     assert_eq!(user.favregion, "fr");
-    assert_eq!(user.maxthreads, "3");
-    assert_eq!(user.requeststoday, Some("0".to_string()));
+    assert_eq!(user.maxthreads, 3);
+    assert_eq!(user.maxdownloadspeed, 2048);
+    assert_eq!(user.requeststoday, Some(0));
+    assert_eq!(user.maxrequestsperday, Some(20000));
   }
 
   #[test]
@@ -270,5 +361,56 @@ mod tests {
   fn parse_jeu_info_invalid_json() {
     let result = parse_jeu_info("{broken");
     assert!(matches!(result, Err(Error::Parse { .. })));
+  }
+
+  // --- parse_systems_liste ---
+
+  #[test]
+  fn parse_systems_liste_success() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"systemes": [{SYSTEME}]}}}}"#);
+    let result = parse_systems_liste(&body);
+    assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+    let systems = result.unwrap();
+    assert_eq!(systems.len(), 1);
+    let s = &systems[0];
+    assert_eq!(s.id, "1");
+    assert_eq!(s.name(), "Megadrive");
+    assert_eq!(s.company.as_deref(), Some("SEGA"));
+    assert!(s.extensions().contains(&"zip"));
+    assert!(s.extensions().contains(&"bin"));
+  }
+
+  #[test]
+  fn parse_systems_liste_api_error() {
+    let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
+    let result = parse_systems_liste(&body);
+    assert!(matches!(result, Err(Error::Api { .. })));
+  }
+
+  // --- parse_jeu_recherche ---
+
+  #[test]
+  fn parse_jeu_recherche_success() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeux": [{JEU}]}}}}"#);
+    let result = parse_jeu_recherche(&body);
+    assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+    let jeux = result.unwrap();
+    assert_eq!(jeux.len(), 1);
+    assert_eq!(jeux[0].id, "3");
+  }
+
+  #[test]
+  fn parse_jeu_recherche_empty() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeux": []}}}}"#);
+    let result = parse_jeu_recherche(&body);
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_empty());
+  }
+
+  #[test]
+  fn parse_jeu_recherche_api_error() {
+    let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
+    let result = parse_jeu_recherche(&body);
+    assert!(matches!(result, Err(Error::Api { .. })));
   }
 }

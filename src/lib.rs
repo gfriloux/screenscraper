@@ -2,9 +2,11 @@ mod api;
 pub mod download;
 mod header;
 pub mod jeuinfo;
+pub mod system;
 pub mod userinfo;
 
 use crate::jeuinfo::JeuInfo;
+use crate::system::System;
 use crate::userinfo::UserInfo;
 #[cfg(test)]
 use dotenv::dotenv;
@@ -15,7 +17,8 @@ pub struct ScreenScraper {
   pub user_login: String,
   pub dev_login: String,
   pub soft_name: String,
-  pub user_info: Option<UserInfo>,
+  /// User info loaded at construction time. Always populated after `new()` succeeds.
+  pub user_info: UserInfo,
   user_password: String,
   dev_password: String,
   client: reqwest::blocking::Client,
@@ -25,11 +28,18 @@ pub struct ScreenScraper {
 pub enum Error {
   #[snafu(display("Failed to fetch UserInfo for {}: {}", user, source))]
   UserInfoFailed { user: String, source: api::Error },
+
   #[snafu(display("Failed to fetch JeuInfo for {}: {}", filename, source))]
   JeuInfoFailed {
     filename: String,
     source: api::Error,
   },
+
+  #[snafu(display("Failed to fetch systems list: {}", source))]
+  SystemsListeFailed { source: api::Error },
+
+  #[snafu(display("Failed to search for game '{}': {}", name, source))]
+  JeuRechercheFailed { name: String, source: api::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -41,28 +51,28 @@ impl ScreenScraper {
     dev_login: &str,
     dev_password: &str,
   ) -> Result<ScreenScraper> {
-    let mut ss = ScreenScraper {
+    let client = reqwest::blocking::Client::new();
+    let soft_name = "ScreenScraper Rust Library".to_string();
+    let query = vec![
+      ("devid", dev_login.to_string()),
+      ("devpassword", dev_password.to_string()),
+      ("softname", soft_name.clone()),
+      ("ssid", user_login.to_string()),
+      ("sspassword", user_password.to_string()),
+      ("output", "json".to_string()),
+    ];
+    let user_info = api::fetch_user_info(&client, &query).context(UserInfoFailedSnafu {
+      user: user_login.to_string(),
+    })?;
+    Ok(ScreenScraper {
       user_login: user_login.to_string(),
       user_password: user_password.to_string(),
       dev_login: dev_login.to_string(),
       dev_password: dev_password.to_string(),
-      soft_name: "ScreenScraper Rust Library".to_string(),
-      user_info: None,
-      client: reqwest::blocking::Client::new(),
-    };
-
-    ss.load()?;
-    Ok(ss)
-  }
-
-  fn load(&mut self) -> Result<()> {
-    let query = self.base_query();
-    self.user_info = Some(api::fetch_user_info(&self.client, &query).context(
-      UserInfoFailedSnafu {
-        user: self.user_login.clone(),
-      },
-    )?);
-    Ok(())
+      soft_name,
+      user_info,
+      client,
+    })
   }
 
   pub fn jeuinfo(
@@ -91,6 +101,39 @@ impl ScreenScraper {
 
     api::fetch_jeu_info(&self.client, &query).context(JeuInfoFailedSnafu {
       filename: filename.to_string(),
+    })
+  }
+
+  /// Returns the full list of systems known to ScreenScraper.
+  pub fn systems_liste(&self) -> Result<Vec<System>> {
+    let query = self.base_query();
+    api::fetch_systems_liste(&self.client, &query).context(SystemsListeFailedSnafu)
+  }
+
+  /// Searches for games by name (up to 30 results, ranked by probability).
+  /// `system_id` narrows the search to a specific system when provided.
+  pub fn jeu_recherche(&self, system_id: Option<u32>, name: &str) -> Result<Vec<JeuInfo>> {
+    let mut query = self.base_query();
+    if let Some(id) = system_id {
+      query.push(("systemeid", id.to_string()));
+    }
+    query.push(("recherche", name.to_string()));
+    api::fetch_jeu_recherche(&self.client, &query).context(JeuRechercheFailedSnafu {
+      name: name.to_string(),
+    })
+  }
+
+  /// Fetches game info using a known ScreenScraper game ID.
+  ///
+  /// Unlike [`jeuinfo`], this does not require ROM hashes — the game is
+  /// identified directly. ROM-specific fields (`rom`, `roms`) will be absent.
+  pub fn jeuinfo_by_gameid(&self, system_id: u32, game_id: u32) -> Result<JeuInfo> {
+    let mut query = self.base_query();
+    query.push(("systemeid", system_id.to_string()));
+    query.push(("gameid", game_id.to_string()));
+    query.push(("romnom", String::new()));
+    api::fetch_jeu_info(&self.client, &query).context(JeuInfoFailedSnafu {
+      filename: format!("gameid:{}", game_id),
     })
   }
 
@@ -139,5 +182,11 @@ mod tests {
       )
       .unwrap();
     println!("{:#?}", ji);
+
+    let systems = ss.systems_liste().unwrap();
+    println!("Systems count: {}", systems.len());
+
+    let results = ss.jeu_recherche(Some(1), "Sonic").unwrap();
+    println!("Search results: {}", results.len());
   }
 }
