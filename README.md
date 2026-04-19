@@ -7,7 +7,7 @@ Unofficial Rust library for [ScreenScraper.fr](https://www.screenscraper.fr).
 - Authenticate and fetch user info
 - Look up game metadata by system ID, filename, size, and checksums (CRC32 / MD5 / SHA1)
 - Rich game data: names, descriptions, genres, dates, ratings, regions, players
-- Select the best available media asset per type and region priority
+- Select the best available media asset per type, automatically prioritising the ROM's own region
 - Download media files directly from the CDN with SHA1 verification
 
 ## Usage
@@ -79,6 +79,13 @@ Common values for `JeuInfo::media(name)`:
 | `manuel`           | Manual (PDF)         |
 
 ## Changelog
+
+### 0.5.0
+
+- **`JeuInfo::media(name)`** — region selection is now ROM-aware: the method first tries the
+  regions declared in `rom.regions.regions_shortname`, then falls back to
+  `["wor", "ss", "eu", "us", "fr", "jp"]`. Previously the priority was fixed to
+  `["fr", "eu", "us", "wor", "jp", "ss"]` regardless of the ROM's actual region.
 
 ### 0.4.0
 
