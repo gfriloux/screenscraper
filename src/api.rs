@@ -54,6 +54,13 @@ pub enum Error {
   #[snafu(display("Failed to reach API at {}: {}", url, source))]
   Request { url: String, source: reqwest::Error },
 
+  #[snafu(display("API returned HTTP {} for {}: {}", status, url, body))]
+  Http {
+    url: String,
+    status: u16,
+    body: String,
+  },
+
   #[snafu(display("Failed to parse API response: {}", source))]
   Parse { source: serde_json::Error },
 
@@ -159,13 +166,35 @@ fn parse_jeu_recherche(body: &str) -> Result<Vec<JeuInfo>> {
     .map(|r| r.jeux)
 }
 
+/// Maximum number of characters kept from an error response body.
+const BODY_MAX: usize = 200;
+
+fn truncated(body: &str) -> String {
+  body.chars().take(BODY_MAX).collect()
+}
+
+/// ScreenScraper reports its errors through the HTTP status code, not through
+/// `header.success` — an error body is not even JSON.
+///
+/// `url` is the bare endpoint, never the request URL: the query string carries
+/// `devpassword` and `sspassword` and must never reach an error message.
 fn get(client: &reqwest::blocking::Client, url: &str, query: &[(&str, String)]) -> Result<String> {
-  client
+  let response = client
     .get(url)
     .query(query)
     .send()
-    .and_then(|r| r.text())
-    .context(RequestSnafu { url })
+    .context(RequestSnafu { url })?;
+  let status = response.status();
+  let body = response.text().context(RequestSnafu { url })?;
+  ensure!(
+    status.is_success(),
+    HttpSnafu {
+      url,
+      status: status.as_u16(),
+      body: truncated(&body),
+    }
+  );
+  Ok(body)
 }
 
 #[cfg(test)]
@@ -412,5 +441,34 @@ mod tests {
     let body = format!(r#"{{"header": {HEADER_ERR}}}"#);
     let result = parse_jeu_recherche(&body);
     assert!(matches!(result, Err(Error::Api { .. })));
+  }
+
+  // --- HTTP errors ---
+
+  #[test]
+  fn truncated_caps_long_bodies() {
+    assert_eq!(truncated(&"x".repeat(1000)).len(), BODY_MAX);
+    assert_eq!(truncated("short"), "short");
+  }
+
+  #[test]
+  fn truncated_does_not_split_multibyte_chars() {
+    let body = "é".repeat(1000);
+    let got = truncated(&body);
+    assert_eq!(got.chars().count(), BODY_MAX);
+  }
+
+  #[test]
+  fn http_error_display_leaks_no_credentials() {
+    let err = Error::Http {
+      url: "https://www.screenscraper.fr/api2/jeuInfos.php".to_string(),
+      status: 430,
+      body: "Votre quota de scrape est dépassé pour aujourd'hui !".to_string(),
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("jeuInfos.php"), "got: {}", msg);
+    assert!(msg.contains("430"), "got: {}", msg);
+    assert!(!msg.contains("devpassword"), "got: {}", msg);
+    assert!(!msg.contains("sspassword"), "got: {}", msg);
   }
 }
