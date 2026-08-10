@@ -12,6 +12,7 @@ Unofficial Rust library for [ScreenScraper.fr](https://www.screenscraper.fr).
 - Rich game data: names, descriptions, genres, dates, ratings, regions, players
 - Select the best available media asset per type, automatically prioritising the ROM's own region
 - Download media files directly from the CDN with SHA1 verification
+- Tell failures apart: "game unknown" vs quota exceeded, thread limit, server busy…
 
 ## Usage
 
@@ -65,6 +66,33 @@ if let Some(media) = jeu.media("ss") {
 }
 ```
 
+### Tell failures apart
+
+ScreenScraper signals its errors through the HTTP status code. `Error::failure()` turns
+that into an `ApiFailure`, so a ROM the site does not know can be distinguished from a
+quota that ran out:
+
+```rust
+use screenscraper::{ApiFailure, ScreenScraper};
+
+match ss.jeuinfo(1, "dolphin.zip", 1234567, None, None, None) {
+    Ok(jeu) => { /* ... */ }
+    Err(e) if e.is_not_found() => {
+        // ScreenScraper genuinely does not know this ROM — ask the user
+    }
+    Err(e) if e.is_retryable() => {
+        // ThreadLimit (429), ServerBusy (401) or a transport error: back off and retry
+    }
+    Err(e) => {
+        // QuotaExceeded (430), ApiClosed (423), Blacklisted (426)… over for this run
+        eprintln!("{} ({:?})", e, e.failure());
+    }
+}
+```
+
+`is_retryable()` is `true` only for `ThreadLimit`, `ServerBusy` and `Transport`. The
+library never retries nor sleeps — the backoff policy is the caller's.
+
 ### Available media types
 
 Common values for `JeuInfo::media(name)`:
@@ -82,6 +110,25 @@ Common values for `JeuInfo::media(name)`:
 | `manuel`           | Manual (PDF)         |
 
 ## Changelog
+
+### 0.7.0
+
+- **HTTP status codes are no longer swallowed.** ScreenScraper reports its errors through
+  the HTTP status, and an error body is not JSON — a 404 and a 430 used to surface as the
+  same `Parse` error. `api::Error` gained an `Http { url, status, body }` variant; the body
+  is truncated to 200 characters and `url` is the bare endpoint, never the request URL
+  (which carries `devpassword` and `sspassword`).
+- **`ApiFailure`** — semantic classification of a failed call: `NotFound` (404),
+  `BadRequest` (400), `ServerBusy` (401), `BadDevCredentials` (403), `ApiClosed` (423),
+  `Blacklisted` (426), `ThreadLimit` (429), `QuotaExceeded` (430), `KoQuotaExceeded` (431),
+  `Http(u16)` for any other status, plus `Transport`, `Malformed` and `Api`.
+- **`Error::failure()`** returns that classification, walking through the
+  `UserInfoFailed` / `JeuInfoFailed` / `SystemsListeFailed` / `JeuRechercheFailed` wrappers.
+- **`Error::is_retryable()`** (and `ApiFailure::is_retryable()`) — `true` only for
+  `ThreadLimit`, `ServerBusy` and `Transport`. Quota and closed-API failures hold for the
+  rest of the run. The library classifies; it never retries nor sleeps.
+- **`Error::is_not_found()`** — shorthand for `failure() == ApiFailure::NotFound`, the only
+  failure meaning ScreenScraper genuinely does not know the ROM.
 
 ### 0.6.0
 
