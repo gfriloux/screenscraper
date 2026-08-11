@@ -66,6 +66,18 @@ if let Some(media) = jeu.media("ss") {
 }
 ```
 
+Videos (`video-normalized`) run to several tens of megabytes, so `fetch()` has a
+reporting counterpart. `progress(read, total)` fires once before the first byte —
+that first call is how the caller learns `total` — then after every 64 KiB chunk.
+`total` is `None` when the server sends no `Content-Length`:
+
+```rust
+dl.fetch_with_progress(dest, |read, total| match total {
+    Some(total) => println!("{read} / {total}"),
+    None => println!("{read}"),
+})?;
+```
+
 ### Tell failures apart
 
 ScreenScraper signals its errors through the HTTP status code. `Error::failure()` turns
@@ -110,6 +122,15 @@ Common values for `JeuInfo::media(name)`:
 | `manuel`           | Manual (PDF)         |
 
 ## Changelog
+
+### 0.8.0
+
+- **`MediaDownload::fetch_with_progress(dest, progress)`** — same download as `fetch()`,
+  calling `progress(read, total)` once before the first byte and then every 64 KiB.
+  `total` comes from `Content-Length` and is `None` when the server omits it. `fetch()`
+  now delegates to it with a no-op callback.
+- **`download::Error::Body`** — a read that fails mid-body no longer surfaces as an
+  `Io` error carrying the destination path; it carries the media URL instead.
 
 ### 0.7.0
 
