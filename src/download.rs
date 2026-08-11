@@ -2,7 +2,7 @@ use sha1::{Digest, Sha1};
 use snafu::{ResultExt, Snafu};
 use std::{
   fs::File,
-  io::Read,
+  io::{Read, Write},
   path::{Path, PathBuf},
 };
 
@@ -14,6 +14,9 @@ const REFERER: &str = "https://screenscraper.fr/membreinfos.php";
 pub enum Error {
   #[snafu(display("Failed to download {}: {}", url, source))]
   Download { url: String, source: reqwest::Error },
+
+  #[snafu(display("Failed to read the body of {}: {}", url, source))]
+  Body { url: String, source: std::io::Error },
 
   #[snafu(display("IO error on {}: {}", path.display(), source))]
   Io {
@@ -38,6 +41,20 @@ impl<'a> MediaDownload<'a> {
   }
 
   pub fn fetch(&self, dest: &Path) -> Result<()> {
+    self.fetch_with_progress(dest, |_, _| {})
+  }
+
+  /// Same as [`fetch`](Self::fetch), reporting how much has been written so far.
+  ///
+  /// `progress(read, total)` is called once before the first byte is read (so the
+  /// caller learns `total` right away), then after every chunk of 64 KiB. `total`
+  /// is the `Content-Length` of the response, `None` when the server does not
+  /// send one. The callback runs on the calling thread.
+  pub fn fetch_with_progress(
+    &self,
+    dest: &Path,
+    mut progress: impl FnMut(u64, Option<u64>),
+  ) -> Result<()> {
     let mut res = self
       .client
       .get(&self.media.url)
@@ -47,10 +64,25 @@ impl<'a> MediaDownload<'a> {
       .context(DownloadSnafu {
         url: &self.media.url,
       })?;
+    let total = res.content_length();
     let mut file = File::create(dest).context(IoSnafu { path: dest })?;
-    res.copy_to(&mut file).context(DownloadSnafu {
-      url: &self.media.url,
-    })?;
+    let mut buffer = vec![0u8; 64 * 1024];
+    let mut read = 0u64;
+
+    progress(read, total);
+    loop {
+      let n = res.read(&mut buffer).context(BodySnafu {
+        url: &self.media.url,
+      })?;
+      if n == 0 {
+        break;
+      }
+      file
+        .write_all(&buffer[..n])
+        .context(IoSnafu { path: dest })?;
+      read += n as u64;
+      progress(read, total);
+    }
     Ok(())
   }
 
