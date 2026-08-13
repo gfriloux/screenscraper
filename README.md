@@ -123,6 +123,16 @@ Common values for `JeuInfo::media(name)`:
 
 ## Changelog
 
+### 0.8.1
+
+- **A search with no result no longer fails the whole call.** `jeuRecherche.php` answers
+  "nothing found" with HTTP 200, `success: "true"` and `jeux` holding a *single empty
+  object* — not an empty list, not a 404. That empty entry made the whole response fail on
+  `missing field id`, so the caller got `ApiFailure::Malformed`, indistinguishable from a
+  corrupt response. `jeu_recherche()` now returns `Ok(vec![])`. Empty objects are the only
+  thing filtered out: a non-empty entry `JeuInfo` refuses is a schema divergence and still
+  fails the call.
+
 ### 0.8.0
 
 - **`MediaDownload::fetch_with_progress(dest, progress)`** — same download as `fetch()`,
