@@ -40,7 +40,28 @@ struct SystemesListeResult {
 
 #[derive(Deserialize)]
 struct ResponseJeuRecherche {
+  /// ScreenScraper says "no result" with a list holding a *single empty object*
+  /// (HTTP 200, `success: "true"`), not with an empty list nor with a 404.
+  /// Deserializing straight into `Vec<JeuInfo>` therefore fails the whole call
+  /// on `missing field id`, and the caller sees `Malformed` — indistinguishable
+  /// from a genuinely corrupt response.
+  #[serde(deserialize_with = "jeux_without_empty_entries")]
   jeux: Vec<JeuInfo>,
+}
+
+/// Drops empty objects from a `jeux` list, and nothing else: a non-empty entry
+/// that `JeuInfo` refuses is a real schema divergence and must keep failing the
+/// call, rather than silently vanishing from a result list.
+fn jeux_without_empty_entries<'de, D>(deserializer: D) -> Result<Vec<JeuInfo>, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  use serde::de::Error as _;
+  Vec::<serde_json::Value>::deserialize(deserializer)?
+    .into_iter()
+    .filter(|v| !matches!(v.as_object(), Some(o) if o.is_empty()))
+    .map(|v| serde_json::from_value(v).map_err(D::Error::custom))
+    .collect()
 }
 
 #[derive(Deserialize)]
@@ -434,6 +455,28 @@ mod tests {
     let result = parse_jeu_recherche(&body);
     assert!(result.is_ok());
     assert!(result.unwrap().is_empty());
+  }
+
+  /// ScreenScraper says "nothing found" with a list of one empty object, HTTP 200
+  /// and success=true. That used to be a `missing field id` on the whole call, so
+  /// an `ApiFailure::Malformed` for the caller — and, for rompom, a ROM that could
+  /// no longer be identified by hand at all.
+  #[test]
+  fn parse_jeu_recherche_no_result_is_an_empty_list() {
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeux": [{{}}]}}}}"#);
+    let result = parse_jeu_recherche(&body);
+    assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+    assert!(result.unwrap().is_empty());
+  }
+
+  /// A non-empty entry that `JeuInfo` refuses stays an error: that is a schema
+  /// divergence, not an API convention.
+  #[test]
+  fn parse_jeu_recherche_incomplete_entry_still_fails() {
+    let jeu = r#"{"romid": "12"}"#;
+    let body = format!(r#"{{"header": {HEADER_OK}, "response": {{"jeux": [{jeu}]}}}}"#);
+    let result = parse_jeu_recherche(&body);
+    assert!(matches!(result, Err(Error::Parse { .. })));
   }
 
   #[test]
