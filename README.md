@@ -121,6 +121,20 @@ Common values for `JeuInfo::media(name)`:
 | `bezel-16-9`       | Bezel (16:9)         |
 | `manuel`           | Manual (PDF)         |
 
+## Security considerations
+
+Every string field returned by this crate (`JeuInfo::find_name()`/`find_desc()`,
+`Rom::romfilename`, `Media::url`/`format`, `System::name()`/`extensions()`, etc.)
+is **remote, attacker-influenceable data**: ScreenScraper is a community-curated
+database, and its content is not validated by this library before being handed
+to you. Treat it the same way you'd treat any third-party API response.
+
+In particular, **do not** build a filesystem path or a shell command from these
+values without sanitizing/validating them first — a game name, ROM filename, or
+media filename could in principle contain path-traversal sequences (`../`),
+shell metacharacters, or control characters. This library performs no such
+sanitization; it is the caller's responsibility.
+
 ## Changelog
 
 ### 0.8.1
