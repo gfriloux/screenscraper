@@ -12,7 +12,6 @@ use crate::userinfo::UserInfo;
 use dotenv::dotenv;
 use snafu::{ResultExt, Snafu};
 
-#[derive(Debug)]
 pub struct ScreenScraper {
   pub user_login: String,
   pub dev_login: String,
@@ -22,6 +21,22 @@ pub struct ScreenScraper {
   user_password: String,
   dev_password: String,
   client: reqwest::blocking::Client,
+}
+
+/// Manual `Debug` impl: the derived one would print `user_password` and
+/// `dev_password` in cleartext, regardless of their field visibility. Both
+/// are redacted here; `client` has no useful `Debug` output and is omitted.
+impl std::fmt::Debug for ScreenScraper {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("ScreenScraper")
+      .field("user_login", &self.user_login)
+      .field("dev_login", &self.dev_login)
+      .field("soft_name", &self.soft_name)
+      .field("user_info", &self.user_info)
+      .field("user_password", &"***")
+      .field("dev_password", &"***")
+      .finish()
+  }
 }
 
 #[derive(Debug, Snafu)]
@@ -256,6 +271,49 @@ impl ScreenScraper {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  // --- Debug redaction ---
+
+  #[test]
+  fn debug_output_redacts_credentials() {
+    let ss = ScreenScraper {
+      user_login: "someuser".to_string(),
+      dev_login: "somedev".to_string(),
+      soft_name: "ScreenScraper Rust Library".to_string(),
+      user_info: UserInfo {
+        id: "someuser".to_string(),
+        numid: None,
+        niveau: "1".to_string(),
+        contribution: "0".to_string(),
+        uploadsysteme: "0".to_string(),
+        uploadinfos: "0".to_string(),
+        romasso: "0".to_string(),
+        uploadmedia: "0".to_string(),
+        propositionok: None,
+        propositionko: None,
+        quotarefu: None,
+        maxthreads: 1,
+        maxdownloadspeed: 1,
+        requeststoday: None,
+        requestskotoday: None,
+        maxrequestspermin: None,
+        maxrequestsperday: None,
+        maxrequestskoperday: None,
+        visites: "0".to_string(),
+        datedernierevisite: "".to_string(),
+        favregion: "wor".to_string(),
+      },
+      user_password: "super-secret-user-password".to_string(),
+      dev_password: "super-secret-dev-password".to_string(),
+      client: reqwest::blocking::Client::new(),
+    };
+
+    let debug = format!("{:?}", ss);
+    assert!(!debug.contains("super-secret-user-password"), "got: {debug}");
+    assert!(!debug.contains("super-secret-dev-password"), "got: {debug}");
+    assert!(debug.contains("someuser"));
+    assert!(debug.contains("***"));
+  }
 
   fn http(status: u16) -> api::Error {
     api::Error::Http {
